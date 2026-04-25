@@ -30,8 +30,8 @@ set -o allexport; . "$ENV_FILE"; set +o allexport
 
 flavor="${1:-dist}"
 case "$flavor" in
-    dist|deb|rpm|uberjar) ;;
-    *) echo "usage: $0 {dist|deb|rpm|uberjar}"; exit 1 ;;
+    dist|deb|rpm|uberjar|appimage) ;;
+    *) echo "usage: $0 {dist|deb|rpm|uberjar|appimage}"; exit 1 ;;
 esac
 
 # Materialize server-config.yaml at the three paths the build reads.
@@ -50,11 +50,69 @@ echo
 echo "=== gradle desktop release ($flavor) ==="
 cd "$ROOT"
 case "$flavor" in
-    dist)    ./gradlew :desktopApp:packageReleaseDistributionForCurrentOS ;;
-    deb)     ./gradlew :desktopApp:packageReleaseDeb ;;
-    rpm)     ./gradlew :desktopApp:packageReleaseRpm ;;
-    uberjar) ./gradlew :desktopApp:packageReleaseUberJarForCurrentOS ;;
+    dist)     ./gradlew :desktopApp:packageReleaseDistributionForCurrentOS ;;
+    deb)      ./gradlew :desktopApp:packageReleaseDeb ;;
+    rpm)      ./gradlew :desktopApp:packageReleaseRpm ;;
+    uberjar)  ./gradlew :desktopApp:packageReleaseUberJarForCurrentOS ;;
+    appimage) ./gradlew :desktopApp:createReleaseDistributable ;;
 esac
+
+# AppImage post-processing: wrap the jpackage app-image into a single
+# .AppImage file. Requires `appimagetool` somewhere on PATH or at
+# /tmp/appimage-tools/appimagetool. If missing, we fall back gracefully.
+if [[ "$flavor" == "appimage" ]]; then
+    APPIMG_SRC="$ROOT/desktopApp/build/compose/binaries/main-release/app/manga-reader"
+    [[ -d "$APPIMG_SRC" ]] || { echo "expected app-image not found: $APPIMG_SRC"; exit 1; }
+    APPDIR="$(mktemp -d)/manga-reader.AppDir"
+    mkdir -p "$APPDIR/usr"
+    cp -r "$APPIMG_SRC/bin" "$APPIMG_SRC/lib" "$APPDIR/usr/"
+    cat > "$APPDIR/AppRun" <<'AR'
+#!/usr/bin/env bash
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/manga-reader" "$@"
+AR
+    chmod +x "$APPDIR/AppRun"
+    cat > "$APPDIR/manga-reader.desktop" <<'DT'
+[Desktop Entry]
+Name=manga-reader
+Exec=manga-reader
+Icon=manga-reader
+Type=Application
+Categories=Utility;
+DT
+    # Minimal 256x256 transparent PNG (no extra tools).
+    python3 -c "
+import struct, zlib
+def png(w,h,rgba=b'\\x00\\x00\\x00\\x00'):
+    sig=b'\\x89PNG\\r\\n\\x1a\\n'
+    def chunk(t,d): return struct.pack('!I',len(d))+t+d+struct.pack('!I',zlib.crc32(t+d)&0xffffffff)
+    ihdr=struct.pack('!IIBBBBB',w,h,8,6,0,0,0)
+    raw=b''.join(b'\\x00'+rgba*w for _ in range(h))
+    return sig+chunk(b'IHDR',ihdr)+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
+open('$APPDIR/manga-reader.png','wb').write(png(256,256))
+"
+    AIT="${APPIMAGETOOL:-/tmp/appimage-tools/appimagetool}"
+    if [[ ! -x "$AIT" ]]; then
+        AIT="$(command -v appimagetool || true)"
+    fi
+    if [[ -z "$AIT" ]]; then
+        echo "appimagetool not found. Either:"
+        echo "  1) curl -fsSL -o /tmp/appimage-tools/appimagetool \\"
+        echo "       https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+        echo "     chmod +x /tmp/appimage-tools/appimagetool"
+        echo "  2) point APPIMAGETOOL=/path/to/appimagetool"
+        exit 1
+    fi
+    out="$ROOT/build/desktop/manga-reader.AppImage"
+    mkdir -p "$(dirname "$out")"
+    ARCH=x86_64 "$AIT" --appimage-extract-and-run "$APPDIR" "$out"
+    rm -rf "$(dirname "$APPDIR")"
+    chmod +x "$out"
+    echo
+    echo "=== single-binary AppImage built: $out ==="
+    ls -la "$out"
+    return 0 2>/dev/null || exit 0   # skip the generic copy step below
+fi
 
 # Copy outputs to DESKTOP_OUT_DIR
 out_dir="${DESKTOP_OUT_DIR:-./build/desktop}"
