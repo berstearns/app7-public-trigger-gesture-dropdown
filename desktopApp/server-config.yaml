@@ -1,0 +1,5 @@
+# PLACEHOLDER — real values come from env vars (see .env.template at repo root).
+# desktopApp/Main.kt reads env var BACKEND_URL first; this file is the fallback.
+backend_url: "http://PLACEHOLDER_BACKEND_HOST:8080"
+queue_host: "PLACEHOLDER_QUEUE_HOST"
+queue_port: 0

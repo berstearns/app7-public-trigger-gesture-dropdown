@@ -1,0 +1,7 @@
+# Materialized from deploy/.env by build-apk.sh.
+# At build time, ${BACKEND_URL}, ${QUEUE_HOST}, ${QUEUE_PORT} are substituted,
+# then this file is written to androidApp/server-config.yaml,
+# desktopApp/server-config.yaml, desktopApp/src/main/resources/server-config.yaml.
+backend_url: "${BACKEND_URL}"
+queue_host: "${QUEUE_HOST}"
+queue_port: ${QUEUE_PORT}

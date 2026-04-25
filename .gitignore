@@ -1,0 +1,6 @@
+.env
+*.keystore.real
+build/
+.gradle/
+.kotlin/
+__pycache__/

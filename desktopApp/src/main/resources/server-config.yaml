@@ -1,0 +1,5 @@
+# PLACEHOLDER — classpath copy, bundled into the jar as a last-resort fallback.
+# Prefer env var BACKEND_URL or a sibling server-config.yaml in the working dir.
+backend_url: "http://PLACEHOLDER_BACKEND_HOST:8080"
+queue_host: "PLACEHOLDER_QUEUE_HOST"
+queue_port: 0
