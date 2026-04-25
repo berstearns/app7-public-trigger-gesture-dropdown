@@ -25,6 +25,17 @@ set -o allexport; . "$ENV_FILE"; set +o allexport
 : "${QUEUE_HOST:?set in deploy/.env}"
 : "${QUEUE_PORT:?set in deploy/.env}"
 
+# Absolute-resolve keystore paths so gradle's file() (which is rooted at
+# androidApp/) doesn't end up looking at androidApp/deploy/... when .env
+# says deploy/...
+for var in ANDROID_DEBUG_KEYSTORE_PATH ANDROID_RELEASE_KEYSTORE_PATH; do
+    val="${!var:-}"
+    if [[ -n "$val" && "$val" != /* ]]; then
+        export "$var"="$ROOT/$val"
+    fi
+done
+echo "  ANDROID_DEBUG_KEYSTORE_PATH=$ANDROID_DEBUG_KEYSTORE_PATH"
+
 flavor="${1:-debug}"
 case "$flavor" in
     debug|release|both) ;;
