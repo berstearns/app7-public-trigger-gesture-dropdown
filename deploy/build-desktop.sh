@@ -24,6 +24,19 @@ TPL_FILE="$HERE/server-config.yaml.template"
 [[ -f "$TPL_FILE" ]] || { echo "missing $TPL_FILE"; exit 1; }
 
 set -o allexport; . "$ENV_FILE"; set +o allexport
+
+# Auto-revert the materialized server-config.yaml files at exit so the
+# real BACKEND_URL never accidentally gets committed.
+_revert_yamls() {
+    if command -v git >/dev/null && git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        git -C "$ROOT" checkout -- \
+            androidApp/server-config.yaml \
+            desktopApp/server-config.yaml \
+            desktopApp/src/main/resources/server-config.yaml 2>/dev/null || true
+    fi
+}
+trap _revert_yamls EXIT
+
 : "${BACKEND_URL:?set in deploy/.env}"
 : "${QUEUE_HOST:?set in deploy/.env}"
 : "${QUEUE_PORT:?set in deploy/.env}"
